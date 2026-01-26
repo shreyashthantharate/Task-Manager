@@ -17,6 +17,19 @@ const userRegistrationValidator = () => {
             .withMessage("Username should be atleast 3 character")
             .isLength({ max: 13 })
             .withMessage("Username cannot exceed 13 character"),
+
+        body("password")
+            .notEmpty()
+            .withMessage("Password is required")
+            .isLength({ min: 6 })
+            .withMessage("Password should be at least 6 character long")
+            .isLength({ max: 20 })
+            .withMessage("Password cannot exceed 20 character"),
+
+        body("role")
+            .optional()
+            .isIn(["user", "admin"])
+            .withMessage("Role must be either user or admin"),
     ];
 };
 
