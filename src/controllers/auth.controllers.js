@@ -31,15 +31,21 @@ const registerUser = asyncHandler(async (req, res) => {
     user.emailVerificationExpiry = tokenExpiry;
 
     await user.save();
+    console.log("user is: ", user);
+    console.log("unhashed token", unHashedToken);
 
     await sendMail({
         email: user?.email,
         subject: "Please verify your email",
-        mailgenContent: emailVerificationMailGenContent(
-            user.username,
-            `${req.protocol}://${req.get(
-                "host",
-            )}/api/v1/users/verify-email/${unHashedToken}`,
+        mailGenContent: emailVerificationMailGenContent(
+            user?.username,
+            `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
+
+            // user.username,
+            // `${req.protocol}://${req.get(
+            //     "host",
+            // )}/api/v1/users/verify-email/${unHashedToken}`,
+            // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
         ),
     });
 
