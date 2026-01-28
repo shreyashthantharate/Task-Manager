@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { registerUser, loginUser } from "../controllers/auth.controllers.js";
+import {
+    registerUser,
+    loginUser,
+    verifyEmail,
+} from "../controllers/auth.controllers.js";
 import {
     userRegistrationValidator,
     userLoginValidator,
@@ -12,4 +16,5 @@ router
     .post(userRegistrationValidator(), validate, registerUser);
 
 router.route("/login").post(userLoginValidator(), validate, loginUser);
+router.route("/verify-email/:verificationToken").get(verifyEmail);
 export default router;

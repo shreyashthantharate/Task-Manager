@@ -3,6 +3,7 @@ import { User } from "../models/user.models.js";
 import ApiError from "../utils/api-error.js";
 import ApiResponse from "../utils/api-response.js";
 import { sendMail, emailVerificationMailGenContent } from "../utils/mail.js";
+import crypto from "crypto";
 
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
@@ -137,9 +138,61 @@ const loginUser = asyncHandler(async (req, res) => {
         );
 });
 
-const logoutUser = asyncHandler(async (req, res) => {});
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: { refreshToken: "" } },
+        { new: true },
+    );
+    const option = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+    };
 
-const verifyEmail = asyncHandler(async (req, res) => {});
+    return res
+        .status(200)
+        .clearCookie("accessToken", option)
+        .clearCookie("refreshToken", option)
+        .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
+
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { verificationToken } = req.params;
+
+    if (!verificationToken) {
+        throw new ApiError(400, "Verification token is missing");
+    }
+
+    // generate hash from a token that we received from the client
+    let hashedToken = crypto
+        .createHash("sha256")
+        .update(verificationToken)
+        .digest("hex");
+
+    const user = await User.findOne({
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+        throw new ApiError(404, "Token is invalid or expired");
+    }
+
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpiry = undefined;
+    user.isEmailVerified = true;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                { isEmailVerified: true },
+                "Email is verified successfully",
+            ),
+        );
+});
 
 const resendVerificationEmail = asyncHandler(async (req, res) => {});
 
