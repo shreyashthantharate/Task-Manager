@@ -39,7 +39,7 @@ const userRegistrationValidator = () => {
     ];
 };
 
-const usereLoginValidator = () => {
+const userLoginValidator = () => {
     return [
         body("email")
             .notEmpty()
@@ -47,8 +47,10 @@ const usereLoginValidator = () => {
             .isEmail()
             .withMessage("Email is not valid"),
 
+        body("username").notEmpty().withMessage("Username is required").trim(),
+
         body("password").notEmpty().withMessage("Password cannot be empty"),
     ];
 };
 
-export { userRegistrationValidator };
+export { userRegistrationValidator, userLoginValidator };

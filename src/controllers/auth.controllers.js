@@ -4,6 +4,24 @@ import ApiError from "../utils/api-error.js";
 import ApiResponse from "../utils/api-response.js";
 import { sendMail, emailVerificationMailGenContent } from "../utils/mail.js";
 
+const generateAccessAndRefreshTokens = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+
+        const accessTOken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        user.refreshToken = refreshToken;
+        await user.save();
+        return { accessTOken, refreshToken };
+    } catch (error) {
+        throw new ApiError(
+            500,
+            "Something went wrong while generating access token",
+        );
+    }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
     const { email, password, username, role } = req.body;
 
@@ -71,7 +89,53 @@ const registerUser = asyncHandler(async (req, res) => {
         );
 });
 
-const loginUser = asyncHandler(async (req, res) => {});
+const loginUser = asyncHandler(async (req, res) => {
+    const { email, username, password } = req.body;
+
+    if (!email && !username) {
+        throw new ApiError(400, "Username or email is required");
+    }
+
+    const user = await User.findOne({
+        $or: [{ username }, { email }],
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User does not exist");
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password);
+
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid user credentials");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+        user._id,
+    );
+
+    // get the user document ignoring the password and refreshToken field
+    const loggedInUser = await User.findById(user._id).select(
+        "-password -refreshToken -emailVerificationToken -emailVerificationExpiry",
+    );
+
+    const options = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+    };
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                { user: loggedInUser, accessToken, refreshToken }, // send access and refresh token in response if client decides to save them by themselves
+                "User logged in successfully",
+            ),
+        );
+});
 
 const logoutUser = asyncHandler(async (req, res) => {});
 
@@ -87,4 +151,14 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {});
 
 const getCurrentUser = asyncHandler(async (req, res) => {});
 
-export { registerUser };
+export {
+    registerUser,
+    loginUser,
+    logoutUser,
+    verifyEmail,
+    resendVerificationEmail,
+    refreshAccessToken,
+    forgotPasswordRequest,
+    changeCurrentPassword,
+    getCurrentUser,
+};
