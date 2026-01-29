@@ -5,6 +5,7 @@ import {
     verifyEmail,
     logoutUser,
     resendVerificationEmail,
+    refreshAccessToken,
 } from "../controllers/auth.controllers.js";
 import {
     userRegistrationValidator,
@@ -24,4 +25,6 @@ router.route("/logout").post(verifyJWT, logoutUser);
 router
     .route("/resend-verification-email")
     .post(verifyJWT, resendVerificationEmail);
+
+router.route("/refresh-token").post(refreshAccessToken);
 export default router;

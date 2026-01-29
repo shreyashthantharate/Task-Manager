@@ -4,6 +4,7 @@ import ApiError from "../utils/api-error.js";
 import ApiResponse from "../utils/api-response.js";
 import { sendMail, emailVerificationMailGenContent } from "../utils/mail.js";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
@@ -235,7 +236,59 @@ const resendVerificationEmail = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Mail has been send to your mail ID."));
 });
 
-const refreshAccessToken = asyncHandler(async (req, res) => {});
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    const incommingRefreshToken =
+        req.cookies?.refreshToken || req.body.refreshToken;
+
+    if (!incommingRefreshToken) {
+        throw new ApiError(400, "Unauthorized request");
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incommingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET,
+        );
+
+        const user = await User.findById(decodedToken?._id);
+        if (!user) {
+            throw new ApiError(401, "Invalid refresh token");
+        }
+
+        // check if incoming refresh token is same as the refresh token attached in the user document
+        // This shows that the refresh token is used or not
+        // Once it is used, we are replacing it with new refresh token below
+        if (incommingRefreshToken !== user?.refreshToken) {
+            // If token is valid but is used already
+            throw new ApiError(401, "Refresh token is expired or used");
+        }
+
+        const options = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+        };
+
+        const { accessToken, refreshToken: newRefreshToken } =
+            await generateAccessAndRefreshTokens(user._id);
+
+        user.refreshToken = newRefreshToken;
+        await user.save({ validateBeforeSave: false });
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", newRefreshToken, options)
+            .json(
+                new ApiResponse(
+                    200,
+                    { accessToken, refreshToken: newRefreshToken },
+                    "Access token has been refreshed successfully",
+                ),
+            );
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refresh token");
+    }
+});
 
 const forgotPasswordRequest = asyncHandler(async (req, res) => {});
 
