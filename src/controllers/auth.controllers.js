@@ -9,12 +9,11 @@ const generateAccessAndRefreshTokens = async (userId) => {
     try {
         const user = await User.findById(userId);
 
-        const accessTOken = user.generateAccessToken();
+        const accessToken = user.generateAccessToken();
         const refreshToken = user.generateRefreshToken();
-
         user.refreshToken = refreshToken;
         await user.save();
-        return { accessTOken, refreshToken };
+        return { accessToken, refreshToken };
     } catch (error) {
         throw new ApiError(
             500,
@@ -124,6 +123,8 @@ const loginUser = asyncHandler(async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
     };
+    console.log(`access token is: ${accessToken}`);
+    console.log(`refresh token is: ${refreshToken}`);
 
     return res
         .status(200)
@@ -194,7 +195,83 @@ const verifyEmail = asyncHandler(async (req, res) => {
         );
 });
 
-const resendVerificationEmail = asyncHandler(async (req, res) => {});
+// This controller is called when user is logged in and he has snackbar that your email is not verified
+// In case he did not get the email or the email verification token is expired
+// he will be able to resend the token while he is logged in
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user?._id);
+
+    if (!user) {
+        throw new ApiError(404, "User does not exist", []);
+    }
+
+    if (user.isEmailVerified) {
+        throw new ApiError(400, "Email is already verified");
+    }
+
+    const { unHashedToken, hashedToken, tokenExpiry } =
+        user.generateTemporaryToken();
+
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpiry = tokenExpiry;
+    await user.save({ validateBeforeSave: false });
+
+    await sendMail({
+        email: user?.email,
+        subject: "Please verify your email",
+        mailGenContent: emailVerificationMailGenContent(
+            // user?.username,
+            // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
+
+            user.username,
+            `${req.protocol}://${req.get(
+                "host",
+            )}/api/v1/users/verify-email/${unHashedToken}`,
+            // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
+        ),
+    });
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Mail has been send to your mail ID."));
+});
+
+// const resendVerificationEmail = asyncHandler(async (req, res) => {
+//     const user = await User.findById(req.user?._id);
+
+//     if (!user) {
+//         throw new ApiError(404, "User does not exists", []);
+//     }
+
+//     // if email is already verified throw an error
+//     if (user.isEmailVerified) {
+//         throw new ApiError(409, "Email is already verified!");
+//     }
+
+//     const { unHashedToken, hashedToken, tokenExpiry } =
+//         user.generateTemporaryToken(); // generate email verification creds
+
+//     user.emailVerificationToken = hashedToken;
+//     user.emailVerificationExpiry = tokenExpiry;
+//     await user.save({ validateBeforeSave: false });
+
+//     await sendMail({
+//         email: user?.email,
+//         subject: "Please verify your email",
+//         mailGenContent: emailVerificationMailGenContent(
+//             // user?.username,
+//             // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
+
+//             user.username,
+//             `${req.protocol}://${req.get(
+//                 "host",
+//             )}/api/v1/users/verify-email/${unHashedToken}`,
+//             // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
+//         ),
+//     });
+//     return res
+//         .status(200)
+//         .json(new ApiResponse(200, {}, "Mail has been sent to your mail ID"));
+// });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {});
 
