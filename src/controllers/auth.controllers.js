@@ -235,44 +235,6 @@ const resendVerificationEmail = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Mail has been send to your mail ID."));
 });
 
-// const resendVerificationEmail = asyncHandler(async (req, res) => {
-//     const user = await User.findById(req.user?._id);
-
-//     if (!user) {
-//         throw new ApiError(404, "User does not exists", []);
-//     }
-
-//     // if email is already verified throw an error
-//     if (user.isEmailVerified) {
-//         throw new ApiError(409, "Email is already verified!");
-//     }
-
-//     const { unHashedToken, hashedToken, tokenExpiry } =
-//         user.generateTemporaryToken(); // generate email verification creds
-
-//     user.emailVerificationToken = hashedToken;
-//     user.emailVerificationExpiry = tokenExpiry;
-//     await user.save({ validateBeforeSave: false });
-
-//     await sendMail({
-//         email: user?.email,
-//         subject: "Please verify your email",
-//         mailGenContent: emailVerificationMailGenContent(
-//             // user?.username,
-//             // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
-
-//             user.username,
-//             `${req.protocol}://${req.get(
-//                 "host",
-//             )}/api/v1/users/verify-email/${unHashedToken}`,
-//             // `${process.env.CORS_ORIGIN}/api/v1/users/verify-email/${unHashedToken}`,
-//         ),
-//     });
-//     return res
-//         .status(200)
-//         .json(new ApiResponse(200, {}, "Mail has been sent to your mail ID"));
-// });
-
 const refreshAccessToken = asyncHandler(async (req, res) => {});
 
 const forgotPasswordRequest = asyncHandler(async (req, res) => {});
