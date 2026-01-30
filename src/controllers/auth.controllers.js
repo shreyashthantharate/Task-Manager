@@ -2,7 +2,11 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { User } from "../models/user.models.js";
 import ApiError from "../utils/api-error.js";
 import ApiResponse from "../utils/api-response.js";
-import { sendMail, emailVerificationMailGenContent } from "../utils/mail.js";
+import {
+    sendMail,
+    emailVerificationMailGenContent,
+    forgotPasswordMailGenContent,
+} from "../utils/mail.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
@@ -290,7 +294,39 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
-const forgotPasswordRequest = asyncHandler(async (req, res) => {});
+const forgotPasswordRequest = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new ApiError(404, "User does not exists", []);
+    }
+
+    // Generate a temporary token
+    const { unHashedToken, hashedToken, tokenExpiry } =
+        user.generateTemporaryToken();
+
+    user.forgotPasswordToken = hashedToken;
+    user.forgotPasswordExpiry = tokenExpiry;
+
+    await user.save({ validateBeforeSave: false });
+
+    // Send mail with the password reset link. It should be the link of the frontend url with token
+    await sendMail({
+        email: user?.email,
+        subject: "Password reset request",
+        mailGenContent: forgotPasswordMailGenContent(user.username),
+    });
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "Password reset mail has been sent on your mail id",
+            ),
+        );
+});
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {});
 
