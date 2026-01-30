@@ -16,9 +16,11 @@ const generateAccessAndRefreshTokens = async (userId) => {
 
         const accessToken = user.generateAccessToken();
         const refreshToken = user.generateRefreshToken();
+        const tokenExpiry = Date.now() + 20 * 60 * 1000; // 20 minutes
+
         user.refreshToken = refreshToken;
         await user.save();
-        return { accessToken, refreshToken };
+        return { accessToken, refreshToken, tokenExpiry };
     } catch (error) {
         throw new ApiError(
             500,
@@ -315,7 +317,10 @@ const forgotPasswordRequest = asyncHandler(async (req, res) => {
     await sendMail({
         email: user?.email,
         subject: "Password reset request",
-        mailGenContent: forgotPasswordMailGenContent(user.username),
+        mailGenContent: forgotPasswordMailGenContent(
+            user.username,
+            `${process.env.CORS_ORIGIN}/api/v1/auth/reset-password/${unHashedToken}`,
+        ),
     });
     return res
         .status(200)
@@ -326,6 +331,42 @@ const forgotPasswordRequest = asyncHandler(async (req, res) => {
                 "Password reset mail has been sent on your mail id",
             ),
         );
+});
+
+const resetForgottenPassword = asyncHandler(async (req, res) => {
+    const { resetToken } = req.params;
+    const { newPassword } = req.body;
+
+    let hashedToken = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+
+    // See if user with hash similar to resetToken exists
+    // If yes then check if token expiry is greater than current date
+
+    const user = await User.findOne({
+        forgotPasswordToken: hashedToken,
+        forgotPasswordExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+        throw new ApiError(489, "Token is invalid or expired");
+    }
+
+    // if everything is ok and token id valid
+    // reset the forgot password token and expiry
+    user.forgotPasswordToken = undefined;
+    user.forgotPasswordExpiry = undefined;
+
+    // Set the provided password as the new password
+    user.password = newPassword;
+
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password reset successfully"));
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {});
@@ -340,6 +381,7 @@ export {
     resendVerificationEmail,
     refreshAccessToken,
     forgotPasswordRequest,
+    resetForgottenPassword,
     changeCurrentPassword,
     getCurrentUser,
 };
